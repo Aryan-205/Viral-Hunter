@@ -1,0 +1,46 @@
+version: '3.8'
+
+services:
+  # 1. High-Performance Redis (Used for Queueing & Caching)
+  redis:
+    image: redis:7-alpine
+    container_name: pulse_redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes
+
+  # 2. Primary Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: pulse_postgres
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: supersecretpassword
+      POSTGRES_DB: trend_pulse
+    ports:
+      - "5432:5432"
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+
+  # 3. Connection Pooler (The shield for your Postgres DB)
+  pgbouncer:
+    image: edoburu/pgbouncer:latest
+    container_name: pulse_pgbouncer
+    environment:
+      - DB_USER=postgres
+      - DB_PASSWORD=supersecretpassword
+      - DB_HOST=postgres
+      - DB_NAME=trend_pulse
+      - POOL_MODE=transaction  # Vital for handling high-concurrency scaling
+      - MAX_CLIENT_CONN=1000   # Accepts up to 1,000 application connections
+      - DEFAULT_POOL_SIZE=20   # Limits actual DB connections to 20
+    ports:
+      - "6432:6432" # Your app will connect here, NOT 5432
+    depends_on:
+      - postgres
+
+volumes:
+  redis_data:
+  pg_data:
